@@ -10,6 +10,6 @@ The definition for the Sepsis-3 onset of sepsis is given as:
 
 -if sepsis was met by Abx first (`sofa_abx=1`), then `abx_datetime` is the onset of sepsis
 
--if sepsis was met by SOFA score first (`sofa_sofa=1`), then `abx_datetime` is the onset of sepsis
+-if sepsis was met by SOFA score first (`sofa_sofa=1`), then `sofa_datetime` is the onset of sepsis
 
 
