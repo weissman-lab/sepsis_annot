@@ -31,32 +31,41 @@ onset_ts <- as.POSIXct(strptime(onset_char_ts, format = '%Y-%m-%dT%H:%M:%S'))
 # Now make a plot
 make_viz <- function(pat_mrn, center_time) {
 
-        temp_dt <- sep_all[MRN == pat_mrn]
-        time_idx <- which(temp_dt$PD_BEG_TIMESTAMP == center_time)
+       temp_dt <- sep_all[MRN == pat_mrn]
+       time_idx <- which(temp_dt$PD_BEG_TIMESTAMP == center_time)
        print(paste('Patient has', nrow(temp_dt), 'rows'))
        print(paste('Sepsis-3 onset is at hour', time_idx ))
+       
+       plot_title <- with(temp_dt, paste(AGE[1], 'year-old',
+                     RACE_1[1], GENDER[1], '\nadmitted for',
+                     ADMIT_DX_DESC[1]))
 
-       # Randomize endpoints so Sep-3 onset isn't exactly in the middle
-       lb <- time_idx - 24 - round(runif(1, 2, 8))
-       ub <- time_idx + 24 + round(runif(1, 2, 8))
+       # Randomize offsets so Sep-3 onset is at the RIGHT side
+       # This is biologically plausible based on current definition
+       # i.e. unlikely that relevant antibiotic starttsime would be 
+       # AFTER Sepsis-3 onset given organ dysfunction has already occurred
+       lb <- max(1, time_idx - 48 - round(runif(1, 2, 8)))
+       ub <- min(nrow(temp_dt), time_idx + 4 + round(runif(1, 2, 8)))
        
        # Get range
        temp_dt <- temp_dt[lb:ub, sub_hour := lb:ub]
 
        # Plot function
        make_series <- function(dt, val) {
-       		   ggplot(dt, aes(sub_hour, {{ val }})) +
-		   	      geom_point() + geom_line() +
+       		   ggplot(dt, aes_string('sub_hour', val)) +
+		   	      geom_point() + geom_line(na.rm=TRUE) +
 			      theme_bw() + xlab('hour')
        }
 
        # List of variable names to plot in order
-       feat_vec <- c(HEART_RATE, SYSTOLIC_BP, TEMPERATURE,
-       		RESPIRATORY_RATE)		
+       feat_vec <- c('HEART_RATE', 'SYSTOLIC_BP', 'TEMPERATURE',
+       		'RESPIRATORY_RATE')		
        
        # Generate and combine plots
-       pl_lst <- lapply(feat_vec, function(val) make_series(temp_dt, val) 
-       Reduce(`+`, pl_lst) + plot_layout(ncol = 1, guides = 'collect')
+       pl_lst <- lapply(feat_vec, function(val) make_series(temp_dt, val)) 
+       wrap_elements(Reduce(`+`, pl_lst) + 
+        plot_layout(ncol = 1, guides = 'collect')) +
+        ggtitle(plot_title)
         
 }
 
