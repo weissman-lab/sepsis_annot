@@ -35,22 +35,28 @@ make_viz <- function(pat_mrn, center_time) {
         time_idx <- which(temp_dt$PD_BEG_TIMESTAMP == center_time)
        print(paste('Patient has', nrow(temp_dt), 'rows'))
        print(paste('Sepsis-3 onset is at hour', time_idx ))
+
        # Randomize endpoints so Sep-3 onset isn't exactly in the middle
        lb <- time_idx - 24 - round(runif(1, 2, 8))
        ub <- time_idx + 24 + round(runif(1, 2, 8))
+       
        # Get range
        temp_dt <- temp_dt[lb:ub, sub_hour := lb:ub]
-       # Plot
-       p_hr <- ggplot(temp_dt, aes(sub_hour, HEART_RATE)) +
-        geom_point() + geom_line() + theme_bw() + xlab('hour')
-       p_sbp <- ggplot(temp_dt, aes(sub_hour, SYSTOLIC_BP)) +
-        geom_point() + geom_line() + theme_bw() + xlab('hour')
-       p_t <- ggplot(temp_dt, aes(sub_hour, TEMPERATURE)) +
-        geom_point() + geom_line() + theme_bw() + xlab('hour')
-       p_rr <- ggplot(temp_dt, aes(sub_hour, RESPIRATORY_RATE)) +
-        geom_point() + geom_line() + theme_bw() + xlab('hour')
-       p_hr + p_sbp + p_t + p_rr + 
-            plot_layout(ncol = 1, guides = 'collect')
+
+       # Plot function
+       make_series <- function(dt, val) {
+       		   ggplot(dt, aes(sub_hour, {{ val }})) +
+		   	      geom_point() + geom_line() +
+			      theme_bw() + xlab('hour')
+       }
+
+       # List of variable names to plot in order
+       feat_vec <- c(HEART_RATE, SYSTOLIC_BP, TEMPERATURE,
+       		RESPIRATORY_RATE)		
+       
+       # Generate and combine plots
+       pl_lst <- lapply(feat_vec, function(val) make_series(temp_dt, val) 
+       Reduce(`+`, pl_lst) + plot_layout(ncol = 1, guides = 'collect')
         
 }
 
