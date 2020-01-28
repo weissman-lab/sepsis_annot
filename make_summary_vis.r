@@ -1,10 +1,13 @@
-# This file create a visualization summary of a particular patient 
+# This file create a visualization summary of a sample of patients 
 # during  a period around the time when they might have sepsis
+# It will save the de-identified output to an image file
+# And generate a crosswalk csv file with PHI
 
-# -------------------------
+# --------------------------------------------------------------------
 SEPSIS_DATA_PATH = "/data/uphs_sepsis/single_file_Sep_2019/single_file_v10-21-2019.csv"
 SEPSIS3_EVENTS = "sepsis_cases_sepsis3.csv"
-# -------------------------
+NUM_CASES = 10
+# --------------------------------------------------------------------
 
 set.seed(24601)
 
@@ -15,32 +18,36 @@ library(patchwork)
 sep_all <- fread(SEPSIS_DATA_PATH)
 sep_events <- fread(SEPSIS3_EVENTS)
 
-# Get a random MRN and onset time
-trial_mrn <- sample(sep_events$mrn, size = 1)
-trial_dt <- sep_events[mrn == trial_mrn]
-onset_char_ts <- NULL
-if (! any(is.na(trial_dt$sofa_bcx)) & all(trial_dt$sofa_bcx == 1)) onset_char_ts <- trial_dt$bcx_datetime[1]
-if (! any(is.na(trial_dt$sofa_abx)) & all(trial_dt$sofa_abx == 1)) onset_char_ts <- trial_dt$abx_datetime[1]
-if (! any(is.na(trial_dt$sofa_sofa)) & all(trial_dt$sofa_sofa == 1)) onset_char_ts <- trial_dt$sofa_datetime[1]
+# Identify sepsis onset timestamp
+sep_onset_dt <- sep_events[, .(onset_char_ts = dplyr::case_when(all(sofa_bcx == 1) ~ bcx_datetime[1],
+                                                               all(sofa_abx == 1) ~ abx_datetime[1],
+                                                               all(sofa_sofa == 1) ~ sofa_datetime[1]),
+                               mrn = mrn[1],
+                               antbx_start_char_ts = abx_datetime[1],
+                               mortality = mortality[1],
+                               adm_datetime = adm_datetime[1]), 
+                           by = visit]
 
-if (is.null(onset_char_ts)) print('Warning: No sepsis onset identified') 
+# Identify sepsis events that occur at least 72 hours into the hospitalization
+sep_onset_dt[, sepsis_onset_dt := as.POSIXct((strptime(onset_char_ts, format = '%Y-%m-%dT%H:%M:%S')))]
+sep_onset_dt[, hosp_adm_dt := as.POSIXct((strptime(adm_datetime, format = '%Y-%m-%dT%H:%M:%S')))]
+sep_onset_dt[, hosp_adm_to_sepsis_onset_hrs := as.numeric(sepsis_onset_dt - hosp_adm_dt, units = 'hours')]
+sep_onset_dt <- sep_onset_dt[hosp_adm_to_sepsis_onset_hrs >= 72]
 
-onset_ts <- as.POSIXct(strptime(onset_char_ts, format = '%Y-%m-%dT%H:%M:%S'))
+# Get sampling of cases
+cases_dt <- sep_onset_dt[sample(.N, NUM_CASES)]
 
-# Some clean up
+# Some data clean up
 sep_all[RESPIRATORY_RATE == 'WDL', RESP_RATE := 18]
 sep_all[RESPIRATORY_RATE == '', RESP_RATE := NA]
 sep_all[! is.na(as.numeric(RESPIRATORY_RATE)),
         RESP_RATE := as.numeric(RESPIRATORY_RATE)]
                                                                        
-
-# Now make a plot
-make_viz <- function(pat_mrn, center_time) {
+# Now make a function to generate a plot for each user
+make_viz <- function(pat_mrn, onset_time) {
 
        temp_dt <- sep_all[MRN == pat_mrn]
-       time_idx <- which(temp_dt$PD_BEG_TIMESTAMP == center_time)
-       print(paste('Patient has', nrow(temp_dt), 'rows'))
-       print(paste('Sepsis-3 onset is at hour', time_idx ))
+       time_idx <- which(temp_dt$PD_BEG_TIMESTAMP == onset_time)
        
        plot_title <- with(temp_dt, paste(AGE[1], 'year-old',
                      RACE_1[1], GENDER[1], '\nadmitted for',
@@ -76,13 +83,26 @@ make_viz <- function(pat_mrn, center_time) {
        
        # Generate and combine plots
        pl_lst <- lapply(feat_vec, function(val) make_series(temp_dt, val)) 
-       wrap_elements(Reduce(`+`, pl_lst) + 
+       final_plot <- wrap_elements(Reduce(`+`, pl_lst) + 
         plot_layout(ncol = 1, guides = 'collect')) +
         ggtitle(plot_title) +
         theme(plot.title = element_text(hjust = 0.5))
         
-}
+        return(final_plot)
+       }
 
 # Test it out
-make_viz(trial_mrn, onset_ts)
+images_list <- lapply(1:NUM_CASES, function(i) make_viz(cases_dt[i]$mrn, cases_dt[i]$onset_char_ts))
+
+# Save images to file
+img_path <- 'images/'
+invisible(lapply(1:NUM_CASES, function(i) ggsave(filename = paste0(img_path, 'image', i, '.png'), 
+                                       plot = images_list[[i]],
+                                       width = 6,
+                                       height = 8)))
+
+
+# Save crosswalk data to file - NB. CONTAINS PHI!
+cases_dt[, filename := paste0(img_path, 'image', .I, '.png')]
+fwrite(cases_dt, 'crosswalk_sepsis.csv')
 
