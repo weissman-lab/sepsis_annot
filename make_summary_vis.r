@@ -52,8 +52,8 @@ make_viz <- function(pat_mrn, center_time) {
 
        # Plot function
        make_series <- function(dt, val) {
-       		   ggplot(dt, aes_string('sub_hour', val)) +
-		   	      geom_point() + geom_line(na.rm=TRUE) +
+       		   ggplot(dt[! is.na(dt[[val]])], aes_string('sub_hour', val)) +
+		   	      geom_point() + geom_line(na.rm = TRUE) +
 			      theme_bw() + xlab('hour')
        }
 
@@ -65,7 +65,8 @@ make_viz <- function(pat_mrn, center_time) {
        pl_lst <- lapply(feat_vec, function(val) make_series(temp_dt, val)) 
        wrap_elements(Reduce(`+`, pl_lst) + 
         plot_layout(ncol = 1, guides = 'collect')) +
-        ggtitle(plot_title)
+        ggtitle(plot_title) +
+        theme(plot.title = element_text(hjust = 0.5))
         
 }
 
