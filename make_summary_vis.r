@@ -27,6 +27,12 @@ if (is.null(onset_char_ts)) print('Warning: No sepsis onset identified')
 
 onset_ts <- as.POSIXct(strptime(onset_char_ts, format = '%Y-%m-%dT%H:%M:%S'))
 
+# Some clean up
+sep_all[RESPIRATORY_RATE == 'WDL', RESP_RATE := 18]
+sep_all[RESPIRATORY_RATE == '', RESP_RATE := NA]
+sep_all[! is.na(as.numeric(RESPIRATORY_RATE)),
+        RESP_RATE := as.numeric(RESPIRATORY_RATE)]
+                                                                       
 
 # Now make a plot
 make_viz <- function(pat_mrn, center_time) {
@@ -48,18 +54,25 @@ make_viz <- function(pat_mrn, center_time) {
        ub <- min(nrow(temp_dt), time_idx + 4 + round(runif(1, 2, 8)))
        
        # Get range
-       temp_dt <- temp_dt[lb:ub, sub_hour := lb:ub]
+       temp_dt <- temp_dt[lb:ub][, sub_hour := lb:ub]
 
        # Plot function
-       make_series <- function(dt, val) {
-       		   ggplot(dt[! is.na(dt[[val]])], aes_string('sub_hour', val)) +
-		   	      geom_point() + geom_line(na.rm = TRUE) +
-			      theme_bw() + xlab('hour')
-       }
+       make_series <- function(dd, val) {
+               
+               # Plot along the max time span available
+                time_range <- range(dd$sub_hour)
+                
+                # Make plot
+       	        ggplot(dd[! is.na(dd[[val]])], aes_string('sub_hour', val)) +
+	   	        geom_point() + 
+       	                geom_line(na.rm = TRUE) +
+		        theme_bw() + 
+       	                scale_x_continuous('hour', limits = time_range)
+        }
 
        # List of variable names to plot in order
        feat_vec <- c('HEART_RATE', 'SYSTOLIC_BP', 'TEMPERATURE',
-       		'RESPIRATORY_RATE')		
+       		'RESP_RATE', 'LACTATE_RESULT')		
        
        # Generate and combine plots
        pl_lst <- lapply(feat_vec, function(val) make_series(temp_dt, val)) 
