@@ -68,14 +68,14 @@ make_viz <- function(pat_mrn, onset_time) {
        make_series <- function(dd, val) {
                 
                 # Make plot
-       	        ggplot(dd[! is.na(dd[[val]])], aes_string('sub_hour', val)) +
+       	        pp <- ggplot(dd[! is.na(dd[[val]])], aes_string('sub_hour', val)) +
 	   	        geom_point() + 
        	                geom_line(na.rm = TRUE) +
 		        theme_bw() + 
        	                scale_x_continuous('hour', 
        	                                   limits = c(lb, ub),
        	                                   expand = c(.03,.03),
-       	                                   breaks = scales::pretty_breaks(n = ub - lb + 1)) +
+       	                                   breaks = scales::pretty_breaks(n = round((ub - lb) / 10))) +
                         scale_y_continuous(breaks = scales::pretty_breaks(n = 4)) +
                         annotate('rect',
                                  xmin = lb,
@@ -83,6 +83,7 @@ make_viz <- function(pat_mrn, onset_time) {
                                      ymin = normal_ranges[[val]][1] , 
                                         ymax = normal_ranges[[val]][2], 
                                  color = 'gray', alpha = 0.2)
+       	        return(pp)
         }
 
        # List of variable names to plot in order
@@ -97,12 +98,13 @@ make_viz <- function(pat_mrn, onset_time) {
        
        # Generate and combine plots
        pl_lst <- lapply(feat_vec, function(val) make_series(temp_dt, val)) 
+  
        final_plot <- wrap_elements(Reduce(`+`, pl_lst) + 
         plot_layout(ncol = 1, guides = 'collect')) +
         ggtitle(plot_title) +
         theme(plot.title = element_text(hjust = 0.5))
         
-        return(final_plot)
+        #return(subplot(pl_lst, nrows = length(feat_vec)))
  }
 
 # Test it out
