@@ -48,9 +48,10 @@ make_viz <- function(pat_mrn, onset_time) {
 
        temp_dt <- sep_all[MRN == pat_mrn]
        time_idx <- which(temp_dt$PD_BEG_TIMESTAMP == onset_time)
-       
+
        plot_title <- with(temp_dt, paste(AGE[1], 'year-old',
-                     RACE_1[1], GENDER[1], '\nadmitted for',
+                     # RACE_1[1], GENDER[1], # TOO MUCH BIAS RISK
+                     'admitted for\n',
                      ADMIT_DX_DESC[1]))
 
        # Randomize offsets so Sep-3 onset is at the RIGHT side
@@ -59,27 +60,40 @@ make_viz <- function(pat_mrn, onset_time) {
        # AFTER Sepsis-3 onset given organ dysfunction has already occurred
        lb <- max(1, time_idx - 48 - round(runif(1, 2, 8)))
        ub <- min(nrow(temp_dt), time_idx + 4 + round(runif(1, 2, 8)))
-       
+
        # Get range
        temp_dt <- temp_dt[lb:ub][, sub_hour := lb:ub]
 
        # Plot function
        make_series <- function(dd, val) {
-               
-               # Plot along the max time span available
-                time_range <- range(dd$sub_hour)
                 
                 # Make plot
        	        ggplot(dd[! is.na(dd[[val]])], aes_string('sub_hour', val)) +
 	   	        geom_point() + 
        	                geom_line(na.rm = TRUE) +
 		        theme_bw() + 
-       	                scale_x_continuous('hour', limits = time_range)
+       	                scale_x_continuous('hour', 
+       	                                   limits = c(lb, ub),
+       	                                   expand = c(.03,.03),
+       	                                   breaks = scales::pretty_breaks(n = ub - lb + 1)) +
+                        scale_y_continuous(breaks = scales::pretty_breaks(n = 4)) +
+                        annotate('rect',
+                                 xmin = lb,
+                                     xmax = ub,
+                                     ymin = normal_ranges[[val]][1] , 
+                                        ymax = normal_ranges[[val]][2], 
+                                 color = 'gray', alpha = 0.2)
         }
 
        # List of variable names to plot in order
        feat_vec <- c('HEART_RATE', 'SYSTOLIC_BP', 'TEMPERATURE',
-       		'RESP_RATE', 'LACTATE_RESULT')		
+       		'RESP_RATE', 'LACTATE_RESULT')
+       
+       normal_ranges <- list(HEART_RATE = c(60, 100),
+                             SYSTOLIC_BP = c(100, 140),
+                             TEMPERATURE = c(97, 99),
+                             RESP_RATE = c(10,20),
+                             LACTATE_RESULT = c(0, 2))
        
        # Generate and combine plots
        pl_lst <- lapply(feat_vec, function(val) make_series(temp_dt, val)) 
@@ -89,10 +103,10 @@ make_viz <- function(pat_mrn, onset_time) {
         theme(plot.title = element_text(hjust = 0.5))
         
         return(final_plot)
-       }
+ }
 
 # Test it out
-images_list <- lapply(1:NUM_CASES, function(i) make_viz(cases_dt[i]$mrn, cases_dt[i]$onset_char_ts))
+images_list <- lapply(1:NUM_CASES, function(i) make_viz(cases_dt[i]$mrn, cases_dt[i]$sepsis_onset_dt))
 
 # Save images to file
 img_path <- 'images/'
