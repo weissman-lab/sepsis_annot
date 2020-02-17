@@ -13,6 +13,7 @@ set.seed(24601)
 
 library(data.table)
 library(ggplot2)
+library(plotly)
 library(patchwork)
 
 sep_all <- fread(SEPSIS_DATA_PATH)
@@ -69,7 +70,7 @@ make_viz <- function(pat_mrn, onset_time) {
                 
                 # Make plot
        	        pp <- ggplot(dd[! is.na(dd[[val]])], aes_string('sub_hour', val)) +
-	   	        geom_point() + 
+	   	       geom_point() + 
        	                geom_line(na.rm = TRUE) +
 		        theme_bw() + 
        	                scale_x_continuous('hour', 
@@ -83,7 +84,7 @@ make_viz <- function(pat_mrn, onset_time) {
                                      ymin = normal_ranges[[val]][1] , 
                                         ymax = normal_ranges[[val]][2], 
                                  color = 'gray', alpha = 0.2)
-       	        return(pp)
+       	        return(ggplotly(pp))
         }
 
        # List of variable names to plot in order
@@ -91,7 +92,7 @@ make_viz <- function(pat_mrn, onset_time) {
        		'RESP_RATE', 'LACTATE_RESULT')
        
        normal_ranges <- list(HEART_RATE = c(60, 100),
-                             SYSTOLIC_BP = c(100, 140),
+                             SYSTOLIC_BP = c(90, 120),
                              TEMPERATURE = c(97, 99),
                              RESP_RATE = c(10,20),
                              LACTATE_RESULT = c(0, 2))
@@ -99,12 +100,13 @@ make_viz <- function(pat_mrn, onset_time) {
        # Generate and combine plots
        pl_lst <- lapply(feat_vec, function(val) make_series(temp_dt, val)) 
   
-       final_plot <- wrap_elements(Reduce(`+`, pl_lst) + 
-        plot_layout(ncol = 1, guides = 'collect')) +
-        ggtitle(plot_title) +
-        theme(plot.title = element_text(hjust = 0.5))
+       #final_plot <- wrap_elements(Reduce(`+`, pl_lst))# + 
+        #plot_layout(ncol = 1, guides = 'collect')) +
+        #ggtitle(plot_title) +
+        #theme(plot.title = element_text(hjust = 0.5))
+       print(sapply(pl_lst, class))
         
-        #return(subplot(pl_lst, nrows = length(feat_vec)))
+        subplot(pl_lst)
  }
 
 # Test it out
