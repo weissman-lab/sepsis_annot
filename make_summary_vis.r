@@ -45,7 +45,7 @@ sep_all[! is.na(as.numeric(RESPIRATORY_RATE)),
         RESP_RATE := as.numeric(RESPIRATORY_RATE)]
                                                                        
 # Now make a function to generate a plot for each user
-make_viz <- function(pat_mrn, onset_time) {
+make_viz <- function(pat_mrn, onset_time, img_idx) {
   
   temp_dt <- sep_all[MRN == pat_mrn]
   time_idx <- which(temp_dt$PD_BEG_TIMESTAMP == onset_time)
@@ -82,7 +82,6 @@ make_viz <- function(pat_mrn, onset_time) {
   
   # Make plot
   pp <- ggplot(temp_dt_m, aes(hour, value)) +
-    geom_line(data = temp_dt_m[! is.na(value)]) +
     theme_bw() + 
     scale_x_continuous('hour', 
                        limits = c(lb, ub),
@@ -90,12 +89,17 @@ make_viz <- function(pat_mrn, onset_time) {
                        breaks = scales::pretty_breaks(n = round((ub - lb) / 10))) +
     scale_y_continuous(breaks = scales::pretty_breaks(n = 4)) +
     geom_rect(aes(xmin = lb, xmax = ub, ymin = norm_lo, ymax = norm_hi),
-             color = 'gray', alpha = 0.2) +
+             fill = 'gray', alpha = 0.1) +
+    geom_line(data = temp_dt_m[! is.na(value)]) +
     geom_point() + 
     # ^^ NB putting this point layer at the end 
     # makes the points appear on "top" so the spike lines are more easily activated
     facet_wrap(~ variable, ncol = 1, scales = 'free_y') +
-    ggtitle(plot_title) 
+    ggtitle(plot_title) +
+    theme(plot.title = element_text(size = 9))
+
+  ggsave(pp, filename = paste0('images/image', img_idx, '.png'), width = 6, height = 8)
+
   
   return(ggplotly(pp) %>% 
            layout(xaxis = list(showspikes = TRUE)) %>% 
@@ -103,17 +107,19 @@ make_viz <- function(pat_mrn, onset_time) {
 }
 
 # Test it out
-images_list <- lapply(1:NUM_CASES, function(i) make_viz(cases_dt[i]$mrn, cases_dt[i]$sepsis_onset_dt))
+images_list <- lapply(1:NUM_CASES, function(i) make_viz(cases_dt[i]$mrn, cases_dt[i]$sepsis_onset_dt, i))
 
 # Save images to file
 img_path <- 'images/'
-invisible(lapply(1:NUM_CASES, function(i) ggsave(filename = paste0(img_path, 'image', i, '.png'), 
-                                       plot = images_list[[i]],
-                                       width = 6,
-                                       height = 8)))
+setwd(img_path)
+invisible(lapply(1:NUM_CASES, function(i) {
+  htmlwidgets::saveWidget(images_list[[i]], file = paste0('image', i, '.html'))
+}))
+setwd('../')
 
 
 # Save crosswalk data to file - NB. CONTAINS PHI!
-cases_dt[, filename := paste0(img_path, 'image', .I, '.png')]
+cases_dt[, png_filename := paste0(img_path, 'image', .I, '.png')]
+cases_dt[, html_filename := paste0(img_path, 'image', .I, '.html')]
 fwrite(cases_dt, 'crosswalk_sepsis.csv')
 
