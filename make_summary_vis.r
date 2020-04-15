@@ -4,7 +4,7 @@
 # And generate a crosswalk csv file with PHI
 
 # --------------------------------------------------------------------
-SEPSIS_DATA_PATH = "/data/uphs_sepsis/single_file_Sep_2019/single_file_v10-21-2019.csv"
+SEPSIS_DATA_PATH = "/data/uphs_sepsis/updated_combo_Jan_2020/single_file_augmented_data_Jan_2020.csv"
 SEPSIS3_EVENTS = "sepsis_cases_sepsis3.csv"
 NUM_CASES = 10
 # --------------------------------------------------------------------
@@ -30,14 +30,22 @@ sep_onset_dt <- sep_events[, .(onset_char_ts = dplyr::case_when(all(sofa_bcx == 
                            by = visit]
 
 # Identify sepsis events that occur at least 72 hours into the hospitalization
-sep_onset_dt[, sepsis_onset_dt := as.POSIXct((strptime(onset_char_ts, format = '%Y-%m-%dT%H:%M:%S')))]
-sep_onset_dt[, hosp_adm_dt := as.POSIXct((strptime(adm_datetime, format = '%Y-%m-%dT%H:%M:%S')))]
-sep_onset_dt[, hosp_adm_to_sepsis_onset_hrs := as.numeric(sepsis_onset_dt - hosp_adm_dt, units = 'hours')]
-sep_onset_dt <- sep_onset_dt[hosp_adm_to_sepsis_onset_hrs >= 72]
+sep_onset_dt[, sepsis_onset_dt := as.POSIXct(onset_char_ts, format = '%Y-%m-%dT%H:%M:%S')]
+sep_onset_dt[, hosp_adm_dt := as.POSIXct(adm_datetime, format = '%Y-%m-%dT%H:%M:%S')]
+sep_onset_dt[, antbx_start_dt := as.POSIXct(antbx_start_char_ts, format = '%Y-%m-%dT%H:%M:%S')]
+sep_onset_dt[, hosp_adm_to_sepsis_onset_hrs := as.numeric(sepsis_onset_dt - hosp_adm_dt, 
+                                                          units = 'hours')]
+sep_onset_dt[, antbx_delay_hrs := as.numeric(antbx_start_dt - sepsis_onset_dt,
+                                             units = 'hours')]
+sep_onset_dt <- sep_onset_dt[antbx_delay_hrs <= 48]
+sep_onset_dt <- sep_onset_dt[hosp_adm_to_sepsis_onset_hrs >= 48]
 
 # Get sampling of cases
-cases_dt <- sep_onset_dt[sample(.N, NUM_CASES)]
-
+# Per Rebecca's suggestion, sample in a stratified way across antibiotic delays
+sep_onset_dt <- sep_onset_dt[, antbx_delay_cat := cut(antbx_delay_hrs, breaks = c(-1, 0, 6, 12, 24, 49))]
+N_PER_GROUP <- round(NUM_CASES / length(unique(sep_onset_dt$antbx_delay_cat)))
+cases_dt <- sep_onset_dt[, .SD[sample(.N, N_PER_GROUP)], by = antbx_delay_cat]
+  
 # Some data clean up
 sep_all[RESPIRATORY_RATE == 'WDL', RESP_RATE := 18]
 sep_all[RESPIRATORY_RATE == '', RESP_RATE := NA]
@@ -45,9 +53,9 @@ sep_all[! is.na(as.numeric(RESPIRATORY_RATE)),
         RESP_RATE := as.numeric(RESPIRATORY_RATE)]
                                                                        
 # Now make a function to generate a plot for each user
-make_viz <- function(pat_mrn, onset_time, img_idx) {
+make_viz <- function(visit, onset_time, img_idx) {
   
-  temp_dt <- sep_all[MRN == pat_mrn]
+  temp_dt <- sep_all[PAT_ENC_CSN == visit][order(PD_BEG_TIMESTAMP)]
   time_idx <- which(temp_dt$PD_BEG_TIMESTAMP == onset_time)
   
   plot_title <- with(temp_dt, paste(AGE[1], 'year-old',
@@ -67,10 +75,10 @@ make_viz <- function(pat_mrn, onset_time, img_idx) {
   
   # List of variable names to plot in order
   feat_vec <- c('HEART_RATE', 'SYSTOLIC_BP', 'TEMPERATURE',
-                'RESP_RATE', 'LACTATE_RESULT')
+                'RESP_RATE', 'LACTATE_RESULT', 'SOFA_RESP_SPO2')
   normal_ranges <- data.table(measure = feat_vec,
-                              norm_lo = c(60,  90,  97, 10, 0),
-                              norm_hi = c(100, 120, 99, 20, 2))
+                              norm_lo = c(60,  90,  97, 10, 0, 90),
+                              norm_hi = c(100, 120, 99, 20, 2, 100))
   
   # Prepare data
   temp_dt <- temp_dt[, c('sub_hour', feat_vec), with = FALSE]
@@ -79,6 +87,11 @@ make_viz <- function(pat_mrn, onset_time, img_idx) {
   temp_dt_m <- merge(temp_dt_m, normal_ranges, 
                      by.x = 'variable', by.y = 'measure',
                      all.x = TRUE)
+  # NB SOFA_RESP_SPO2 is carried forward for each hour
+  # Probably only real (and new) when ! is.na(RESP_RATE)
+  # Fix this to avoid signaling too much informative presence:
+  temp_dt_m <- temp_dt_m[variable == 'SOFA_RESP_SPO2']
+  # TODO: FIX THIS!!!!!
   
   # Make plot
   pp <- ggplot(temp_dt_m, aes(hour, value)) +
@@ -86,10 +99,10 @@ make_viz <- function(pat_mrn, onset_time, img_idx) {
     scale_x_continuous('hour', 
                        limits = c(lb, ub),
                        expand = c(.03,.03),
-                       breaks = scales::pretty_breaks(n = round((ub - lb) / 10))) +
-    scale_y_continuous(breaks = scales::pretty_breaks(n = 4)) +
+                       breaks = scales::pretty_breaks(n = 8)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 4), expand = c(0.02, 0.02)) +
     geom_rect(aes(xmin = lb, xmax = ub, ymin = norm_lo, ymax = norm_hi),
-             fill = 'gray', alpha = 0.1) +
+             fill = 'gray', alpha = 0.3) +
     geom_line(data = temp_dt_m[! is.na(value)]) +
     geom_point() + 
     # ^^ NB putting this point layer at the end 
@@ -107,7 +120,7 @@ make_viz <- function(pat_mrn, onset_time, img_idx) {
 }
 
 # Test it out
-images_list <- lapply(1:NUM_CASES, function(i) make_viz(cases_dt[i]$mrn, cases_dt[i]$sepsis_onset_dt, i))
+images_list <- lapply(1:NUM_CASES, function(i) make_viz(cases_dt[i]$visit, cases_dt[i]$sepsis_onset_dt, i))
 
 # Save images to file
 img_path <- 'images/'
