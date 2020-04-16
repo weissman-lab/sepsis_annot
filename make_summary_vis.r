@@ -51,6 +51,25 @@ sep_all[RESPIRATORY_RATE == 'WDL', RESP_RATE := 18]
 sep_all[RESPIRATORY_RATE == '', RESP_RATE := NA]
 sep_all[! is.na(as.numeric(RESPIRATORY_RATE)),
         RESP_RATE := as.numeric(RESPIRATORY_RATE)]
+
+# Get only the updated creatinine
+# helper function
+get_first_in_seq <- function(x) {
+  results <- NULL
+  rr <- rle(x)
+  gr <- length(rr$lengths)
+  res_list <- lapply(1:gr, function(i) { 
+   if(is.na(rr$values[i])) {
+     return(NA)
+   } else {
+     return(c(rr$values[i], rep(NA, rr$lengths[i] - 1)))
+   }
+  })
+  return(unlist(res_list))
+}
+
+sep_all <- sep_all[order(PAT_ENC_CSN, PD_BEG_TIMESTAMP)][, creat_first_obs := get_first_in_seq(SOFA_CREATININE_RESULT), 
+                                                   by = PAT_ENC_CSN]
                                                                        
 # Now make a function to generate a plot for each user
 make_viz <- function(visit, onset_time, img_idx) {
@@ -75,10 +94,11 @@ make_viz <- function(visit, onset_time, img_idx) {
   
   # List of variable names to plot in order
   feat_vec <- c('HEART_RATE', 'SYSTOLIC_BP', 'TEMPERATURE',
-                'RESP_RATE', 'LACTATE_RESULT', 'SOFA_RESP_SPO2')
+                'RESP_RATE', 'LACTATE_RESULT', 'SOFA_RESP_SPO2', 
+                'creat_first_obs')
   normal_ranges <- data.table(measure = feat_vec,
-                              norm_lo = c(60,  90,  97, 10, 0, 90),
-                              norm_hi = c(100, 120, 99, 20, 2, 100))
+                              norm_lo = c(60,  90,  97, 10, 0, 90, 0.55),
+                              norm_hi = c(100, 120, 99, 20, 2, 100, 1.15))
   
   # Prepare data
   temp_dt <- temp_dt[, c('sub_hour', feat_vec), with = FALSE]
@@ -87,11 +107,25 @@ make_viz <- function(visit, onset_time, img_idx) {
   temp_dt_m <- merge(temp_dt_m, normal_ranges, 
                      by.x = 'variable', by.y = 'measure',
                      all.x = TRUE)
+  
+  # Fix order and labels
+  temp_dt_m[, var_fixed := factor(variable, 
+                                     levels = feat_vec,
+                                     labels = c('Heart rate', 'Systolic blood pressure',
+                                     'Temperature (F)', 'Respiratory rate',
+                                     'Lactate', 'SpO2(%)',
+                                     'Creatinine'))]
+  
+  # Hlper function
+  "%nin%" <- function(x, table) !(match(x, table, nomatch = 0) > 0)
   # NB SOFA_RESP_SPO2 is carried forward for each hour
-  # Probably only real (and new) when ! is.na(RESP_RATE)
+  # Probably only real (and new) when other vital signs are also being observed
+  # This is probably true MOST of the time
   # Fix this to avoid signaling too much informative presence:
-  temp_dt_m <- temp_dt_m[variable == 'SOFA_RESP_SPO2']
-  # TODO: FIX THIS!!!!!
+  temp_dt_m <- temp_dt_m[! (variable == 'SOFA_RESP_SPO2' & 
+                              (hour %nin% temp_dt_m[variable %in% 
+                                                       c('RESP_RATE', 'SYSTOLIC_BP', 
+                                                         'TEMPERATURE', 'HEART_RATE')][!is.na(value)]$hour))]
   
   # Make plot
   pp <- ggplot(temp_dt_m, aes(hour, value)) +
@@ -107,7 +141,7 @@ make_viz <- function(visit, onset_time, img_idx) {
     geom_point() + 
     # ^^ NB putting this point layer at the end 
     # makes the points appear on "top" so the spike lines are more easily activated
-    facet_wrap(~ variable, ncol = 1, scales = 'free_y') +
+    facet_wrap(~ var_fixed, ncol = 1, scales = 'free_y') +
     ggtitle(plot_title) +
     theme(plot.title = element_text(size = 9))
 
