@@ -86,9 +86,14 @@ make_viz <- function(visit, onset_time, img_idx) {
   # This is biologically plausible based on current definition
   # i.e. unlikely that relevant antibiotic starttsime would be 
   # AFTER Sepsis-3 onset given organ dysfunction has already occurred
-  lb <- max(1, time_idx - 48 - round(runif(1, 2, 8)))
-  ub <- min(nrow(temp_dt), time_idx + 4 + round(runif(1, 2, 8)))
-  
+ # lb <- max(1, time_idx - 48 - round(runif(1, 2, 8)))
+ # ub <- min(nrow(temp_dt), time_idx + 4 + round(runif(1, 2, 8)))
+ 
+  # For the pilot, let's center the onset time just to have some validation
+  # That it's okay to skew the presentations
+  lb <- max(1, time_idx - 24 - round(runif(1, 1, 3)))
+  ub <- min(nrow(temp_dt), time_idx + 24 + round(runif(1,1,3)))
+   
   # Get range
   temp_dt <- temp_dt[lb:ub][, sub_hour := lb:ub]
   
