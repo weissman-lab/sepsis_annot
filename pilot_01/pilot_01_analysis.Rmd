@@ -118,6 +118,21 @@ ggplot(res_cont_3, aes(vignette_id, diff_hrs)) +
   facet_wrap(~antbx_delay_cat, scale = 'free_x')
 ```
 
+What proportion of annotations *preceded* the Sepsis-3 onset time?
+
+```{r prop_precede}
+ggplot(res_cont_3, aes(diff_hrs)) + 
+  geom_histogram(binwidth = 1) +
+  geom_vline(xintercept = 0, color = 'red') +
+  theme_bw() +
+  scale_x_continuous('Sepsis onset - antbx start time (hours)') +
+  annotate('text', x = -5, y = 6, label = paste0('N = ', sum(res_cont_3$diff_hrs < 0),
+                                                 '\n(', format(mean(res_cont_3$diff_hrs < 0) * 100, digits = 2), '%)')) +
+  annotate('text', x = 5, y = 6, label = paste0('N = ', sum(res_cont_3$diff_hrs >= 0),
+                                                 '\n(', format(mean(res_cont_3$diff_hrs >= 0) * 100, digits = 2), '%)')) 
+
+```
+
 ### Sample analysis 
 
 The proposed analysis is as follows:
