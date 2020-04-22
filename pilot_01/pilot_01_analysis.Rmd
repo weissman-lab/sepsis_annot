@@ -1,0 +1,152 @@
+---
+title: "Pilot 1 Analysis: Sepsis onset by Sepsis-3 criteria diverges from clinical judgement of timing of antibiotic initiation"
+author: "Gary Weissman"
+date: "4/22/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+This analysis is based on a handful of respones to a pilot version of the survey with 10 clinical vignettes that was distributed to members of the MSHP RIP group on April 21, 2020. The link to this version of the pilot survey is here: https://upenn.co1.qualtrics.com/jfe/form/SV_8zWFQgXyLAa4qUJ
+
+## Analysis
+
+```{r loadstuff}
+library(data.table)
+library(ggplot2)
+library(ggsci)
+library(lme4)
+
+rr <- fread('Sepsis+Annotations+Pilot_April+22%2C+2020_07.50.csv')
+cw <- fread('crosswalk_sepsis.csv')
+cw <- cw[, .(onset_hrs = hosp_adm_to_sepsis_onset_hrs, 
+             antbx_delay_cat, antbx_delay_hrs)][, vignette_id := factor(1:10)]
+```
+
+### Who responded?
+
+The listed specialtise of those responding were:
+
+```{r specialty}
+knitr::kable(table(rr$Q3))
+```
+
+When did you graduate medical school?
+
+```{r grad}
+knitr::kable(table(rr$Q2, useNA = 'always'))
+```
+
+For the purposes of this pilot analysis, let's drop the one person who did not graduate from medical school.
+
+How long did it take you to complete the survey (10 vignettes)?
+
+```{r time}
+hist(rr$`Duration (in seconds)` / 60, 
+     main = 'Time to study completion',
+     xlab = 'minutes')
+```
+
+### Categorical responses
+
+First look at the categorical responses to each question. The options for each question was a multiple choice of:
+
+1. "I would have started antibiotics at: XXX"
+2. "There is insufficient data to determine when antibiotics should have been started."
+3. "I would not have started antibiotics for this patient during the time window."
+
+```{r cat_response}
+res_cat_1 <- rr[! is.na(Q2), paste0('Q',c(5:11,13,15,14))][, participant_id := .I]
+res_cat_2 <- melt(res_cat_1, id.vars = c('participant_id'))
+res_cat_2[, vignette_id := factor(variable, labels = 1:10)]
+# Clean up responses and shorten for plotting
+res_cat_2[value == '', value_clean := 'No response']
+res_cat_2[value == 'I would have started broad-spectrum antibiotics at:',
+          value_clean := 'Start antibiotics']
+res_cat_2[value == 'I would not have started antibiotics for this patient during the time window.',
+          value_clean := 'No antibiotics']
+res_cat_2[value == 'There is insufficient data to determine when antibiotics should have been started.',
+          value_clean := 'Insufficient data']
+res_cat_3 <- res_cat_2[, .N, by = .(vignette_id, value_clean)]
+
+# Now plot
+ggplot(res_cat_3, aes(vignette_id, y = N, 
+                      fill = value_clean, group = value_clean)) +
+  geom_bar(stat = 'identity') +
+  theme_bw() +
+  scale_fill_d3(name = 'Response') +
+  scale_x_discrete('Vignette')
+```
+
+### Continuous responses
+
+For those users who selected to start antibiotics, they were prompted to enter a start time for antibiotics. Here we display the start time relative to the onset of sepsis as defined by Sepsis-3. Thus negative values indicate starting antibiotics earlier and positive values indicate starting antibiotics later.
+
+```{r cont_response}
+res_cont_1 <- rr[! is.na(Q2), paste0('Q',c(5:11,13,15,14),'_4_TEXT')][,participant_id := .I]
+res_cont_2 <- melt(res_cont_1, id.vars = c('participant_id'))
+res_cont_2[, vignette_id := factor(variable, labels = 1:10)]
+res_cont_2 <- res_cont_2[! is.na(value)]
+res_cont_3 <- merge(res_cont_2, cw, by = 'vignette_id', all.x = TRUE)
+res_cont_3[, diff_hrs := value - onset_hrs]
+res_cont_3[, sd := format(sd(diff_hrs), digits = 3), by = vignette_id]
+
+# Now plot
+ggplot(res_cont_3, aes(vignette_id, diff_hrs)) +
+  geom_boxplot() +
+  geom_text(aes(label = paste0('SD =\n',sd)), y = 30, color = 'navy') +
+  geom_hline(yintercept = 0, color = 'red') +
+  theme_bw() +
+  scale_x_discrete('Vignette') +
+  scale_y_continuous('Sepsis onset - antbx start time (hours)')
+```
+
+The vignettes themselves were selected by the degree of delay in their antibiotic administration, with 2 vignettes from each category of degree of delay. This was done because there may be differences in severity of illness, clinical recognition, or other factors that contribute to these differences in care processes. Now let's look at the results by degree of delay.
+
+```{r cont_resp_by_delay}
+ggplot(res_cont_3, aes(vignette_id, diff_hrs)) +
+  geom_boxplot() +
+  geom_text(aes(label = paste0('SD =\n',sd)), y = 30, color = 'navy') + 
+  geom_hline(yintercept = 0, color = 'red') +
+  theme_bw() +
+  scale_x_discrete('Vignette') +
+  scale_y_continuous('Sepsis onset - antbx start time (hours)') +
+  facet_wrap(~antbx_delay_cat, scale = 'free_x')
+```
+
+### Sample analysis 
+
+The proposed analysis is as follows:
+
+```{r analysis}
+# Fit model
+m1 <- lmer(diff_hrs ~ (1 | participant_id) + (1 | vignette_id), 
+           data = res_cont_3)
+summary(m1)
+# Is the intercept truly different than zero?
+# Force a Zero interecept
+m2 <- lmer(diff_hrs ~ 0 + (1 | participant_id) + (1 | vignette_id), 
+           data = res_cont_3)
+summary(m2)
+# Are these models different?
+anova(m1, m2, test = 'LRT')
+
+# Now also repeat analysis adjusting for patient specialty and center when we have more data...
+```
+
+
+## Instrument feedback
+
+- provide an introductory page that describes elements of the plots (dots, header, axes, shaded regions)
+- fix shaded region for Creatinine
+- make case headers larger and more prominent
+- make each vignette fit on a single page that includes the header and answer
+- consider 8 vignettes rather than 10 because causes cognitive strain by the end
+- consider a "real time simulation" where the time is laid out progressively with question "would you start antibiotics now?"
+- clarify that each vignette contains some onset of sepsis 3, and condider indicating this time point
+- change x-axis numbers to something more regular (e.g. 0 - 48)
+- does this approach conflate two questions: when did sepsis start? and how long in advance of sepsis start should I begin antibiotics?
