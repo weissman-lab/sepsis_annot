@@ -6,7 +6,7 @@
 # --------------------------------------------------------------------
 SEPSIS_DATA_PATH = "/data/uphs_sepsis/updated_combo_Jan_2020/single_file_augmented_data_Jan_2020.csv"
 SEPSIS3_EVENTS = "sepsis_cases_sepsis3.csv"
-NUM_CASES = 10
+NUM_CASES = 8
 # --------------------------------------------------------------------
 
 set.seed(24601)
@@ -42,9 +42,12 @@ sep_onset_dt <- sep_onset_dt[hosp_adm_to_sepsis_onset_hrs >= 48]
 
 # Get sampling of cases
 # Per Rebecca's suggestion, sample in a stratified way across antibiotic delays
-sep_onset_dt <- sep_onset_dt[, antbx_delay_cat := cut(antbx_delay_hrs, breaks = c(-1, 0, 6, 12, 24, 49))]
+sep_onset_dt <- sep_onset_dt[, antbx_delay_cat := cut(antbx_delay_hrs, breaks = c(-1, 6, 12, 24, 49))]
 N_PER_GROUP <- round(NUM_CASES / length(unique(sep_onset_dt$antbx_delay_cat)))
 cases_dt <- sep_onset_dt[, .SD[sample(.N, N_PER_GROUP)], by = antbx_delay_cat]
+
+# Initialize bounds
+cases_dt[, `:=`(window_lower = -1, window_upper = -1)]
   
 # Some data clean up
 sep_all[RESPIRATORY_RATE == 'WDL', RESP_RATE := 18]
@@ -72,14 +75,14 @@ sep_all <- sep_all[order(PAT_ENC_CSN, PD_BEG_TIMESTAMP)][, creat_first_obs := ge
                                                    by = PAT_ENC_CSN]
                                                                        
 # Now make a function to generate a plot for each user
-make_viz <- function(visit, onset_time, img_idx) {
+make_viz <- function(this_visit, onset_time, img_idx) {
   
-  temp_dt <- sep_all[PAT_ENC_CSN == visit][order(PD_BEG_TIMESTAMP)]
+  temp_dt <- sep_all[PAT_ENC_CSN == this_visit][order(PD_BEG_TIMESTAMP)]
   time_idx <- which(temp_dt$PD_BEG_TIMESTAMP == onset_time)
   
-  plot_title <- with(temp_dt, paste(AGE[1], 'year-old',
+  plot_title <- with(temp_dt, paste0(AGE[1], '-year-old',
                                     # RACE_1[1], GENDER[1], # TOO MUCH BIAS RISK
-                                    'admitted for',
+                                    ' admitted for\n',
                                     ADMIT_DX_DESC[1]))
   
   # Randomize offsets so Sep-3 onset is at the RIGHT side
@@ -89,10 +92,14 @@ make_viz <- function(visit, onset_time, img_idx) {
  # lb <- max(1, time_idx - 48 - round(runif(1, 2, 8)))
  # ub <- min(nrow(temp_dt), time_idx + 4 + round(runif(1, 2, 8)))
  
-  # For the pilot, let's center the onset time just to have some validation
-  # That it's okay to skew the presentations
-  lb <- max(1, time_idx - 24 - round(runif(1, 1, 3)))
-  ub <- min(nrow(temp_dt), time_idx + 24 + round(runif(1,1,3)))
+  # Based on pilot 01 results, let's keep onset right around the middle
+  lb <- max(1, time_idx - 48 - round(runif(1, 1, 6)))
+  ub <- min(nrow(temp_dt), time_idx + 48 + round(runif(1,1,6)))
+  
+  # This is hackish, but update the cases file to capture the window for each case
+  cases_dt[visit == this_visit, window_lower := lb]
+  cases_dt[visit == this_visit, window_upper := ub]
+  
    
   # Get range
   temp_dt <- temp_dt[lb:ub][, sub_hour := lb:ub]
@@ -100,10 +107,10 @@ make_viz <- function(visit, onset_time, img_idx) {
   # List of variable names to plot in order
   feat_vec <- c('HEART_RATE', 'SYSTOLIC_BP', 'TEMPERATURE',
                 'RESP_RATE', 'LACTATE_RESULT', 'SOFA_RESP_SPO2', 
-                'creat_first_obs')
+                'creat_first_obs', 'max_WBC', 'SOFA_CNS_GLASGOW_RESULT')
   normal_ranges <- data.table(measure = feat_vec,
-                              norm_lo = c(60,  90,  97, 10, 0, 90, 0.55),
-                              norm_hi = c(100, 120, 99, 20, 2, 100, 1.15))
+                              norm_lo = c(60,  90,  97, 10, 0, 90, 0.55, 4, 14.8),
+                              norm_hi = c(100, 120, 99, 20, 2, 100, 1.15, 11, 15.2))
   
   # Prepare data
   temp_dt <- temp_dt[, c('sub_hour', feat_vec), with = FALSE]
@@ -119,7 +126,8 @@ make_viz <- function(visit, onset_time, img_idx) {
                                      labels = c('Heart rate', 'Systolic blood pressure',
                                      'Temperature (F)', 'Respiratory rate',
                                      'Lactate', 'SpO2(%)',
-                                     'Creatinine'))]
+                                     'Creatinine', 'White blood cell count',
+                                     'Glasgow Coma Scale'))]
   
   # Hlper function
   "%nin%" <- function(x, table) !(match(x, table, nomatch = 0) > 0)
@@ -130,25 +138,34 @@ make_viz <- function(visit, onset_time, img_idx) {
   temp_dt_m <- temp_dt_m[! (variable == 'SOFA_RESP_SPO2' & 
                               (hour %nin% temp_dt_m[variable %in% 
                                                        c('RESP_RATE', 'SYSTOLIC_BP', 
-                                                         'TEMPERATURE', 'HEART_RATE')][!is.na(value)]$hour))]
+                                                         'TEMPERATURE')][!is.na(value)]$hour))]
+  # This is probably also true for the GCS:
+  temp_dt_m <- temp_dt_m[! (variable == 'SOFA_CNS_GLASGOW_RESULT' & 
+                              (hour %nin% temp_dt_m[variable %in% 
+                                                      c('RESP_RATE', 'SYSTOLIC_BP', 
+                                                        'TEMPERATURE')][!is.na(value)]$hour))]
+  
+  # Determine breaks
+  inc <- round((ub - lb) / 8)
   
   # Make plot
   pp <- ggplot(temp_dt_m, aes(hour, value)) +
     theme_bw() + 
     scale_x_continuous('hour', 
                        limits = c(lb, ub),
-                       expand = c(.03,.03),
-                       breaks = scales::pretty_breaks(n = 8)) +
-    scale_y_continuous(breaks = scales::pretty_breaks(n = 4), expand = c(0.02, 0.02)) +
+                       expand = c(.03, .03),
+                       breaks = round(c(lb + 0:8 * inc)),
+                       labels = round(c(lb + 0:8 * inc - lb + 1))) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 4), expand = c(0.03, 0.03)) +
     geom_rect(aes(xmin = lb, xmax = ub, ymin = norm_lo, ymax = norm_hi),
-             fill = 'gray', alpha = 0.3) +
+             fill = 'lightgray', alpha = 0.2) +
     geom_line(data = temp_dt_m[! is.na(value)]) +
     geom_point() + 
     # ^^ NB putting this point layer at the end 
     # makes the points appear on "top" so the spike lines are more easily activated
     facet_wrap(~ var_fixed, ncol = 1, scales = 'free_y') +
     ggtitle(plot_title) +
-    theme(plot.title = element_text(size = 9))
+    theme(plot.title = element_text(size = 12))
 
   ggsave(pp, filename = paste0('images/image', img_idx, '.png'), width = 6, height = 8)
 
