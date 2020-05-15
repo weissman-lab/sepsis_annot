@@ -133,7 +133,7 @@ ggplot(res_cont_3, aes(diff_hrs)) +
 
 ```
 
-### Sample analysis 
+### Sample analysis  
 
 The proposed analysis is as follows:
 
@@ -157,7 +157,7 @@ anova(m1, m2, test = 'LRT')
 ## Instrument feedback
 
 - consider include only vignetttes with complete data (e.g. at least one WBC value, etc)
-- change language to, "If you had been caring for the patient, when would have been reasonable to iniitiate broad-spectrum antibiotics..." and be sure to clarify we are *not* asking a "what could have been done differently" kind of question
+- change language to, "If you had been caring for the patient, when would have been reasonable to initiate broad-spectrum antibiotics..." and be sure to clarify we are *not* asking a "what could have been done differently" kind of question
 - shrink the size of the plot a little bit and consider putting x-axis on all panels
 - consider 6 vs 8 vignettes
 - participant feels "strain" if the sepsis diagnosis isn't obvious, though important to keep these cases because they are more informative

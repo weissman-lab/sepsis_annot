@@ -9,7 +9,7 @@ SEPSIS3_EVENTS = "sepsis_cases_sepsis3.csv"
 NUM_CASES = 8
 # --------------------------------------------------------------------
 
-set.seed(24601)
+set.seed(1)
 
 library(data.table)
 library(ggplot2)
@@ -44,16 +44,6 @@ sep_onset_dt <- sep_onset_dt[hosp_adm_to_sepsis_onset_hrs >= 48]
 sep_all[, adm_dt := as.POSIXct(ADMISSION_DTTM, format = '%Y-%m-%d %H:%M:%S')]
 sep_all[, disch_dt := as.POSIXct(DISCHARGE_DTTM, format = '%Y-%m-%d %H:%M:%S')]
 sep_all[, hosp_los_hrs := as.numeric(disch_dt - adm_dt, units = 'hours')]
-
-
-# Get sampling of cases
-# Per Rebecca's suggestion, sample in a stratified way across antibiotic delays
-sep_onset_dt <- sep_onset_dt[, antbx_delay_cat := cut(antbx_delay_hrs, breaks = c(-1, 6, 12, 24, 49))]
-N_PER_GROUP <- round(NUM_CASES / length(unique(sep_onset_dt$antbx_delay_cat)))
-cases_dt <- sep_onset_dt[, .SD[sample(.N, N_PER_GROUP)], by = antbx_delay_cat]
-
-# Initialize bounds
-cases_dt[, `:=`(window_lower = -1, window_upper = -1)]
   
 # Some data clean up
 sep_all[RESPIRATORY_RATE == 'WDL', RESP_RATE := 18]
@@ -79,7 +69,29 @@ get_first_in_seq <- function(x) {
 
 sep_all <- sep_all[order(PAT_ENC_CSN, PD_BEG_TIMESTAMP)][, creat_first_obs := get_first_in_seq(SOFA_CREATININE_RESULT), 
                                                    by = PAT_ENC_CSN]
-                                                                       
+sep_all <- merge(sep_all, 
+                 sep_onset_dt[, .(PAT_ENC_CSN = visit, sepsis_onset_dt)],
+                 by = 'PAT_ENC_CSN', 
+                 all.x = TRUE)
+# Identify which cases have at least some data:
+required_fields <- c('HEART_RATE', 'SYSTOLIC_BP', 'TEMPERATURE',
+                     'RESP_RATE', 'LACTATE_RESULT', 'SOFA_RESP_SPO2', 
+                     'creat_first_obs', 'max_WBC', 'SOFA_CNS_GLASGOW_RESULT')
+sep_all[, has_all_fields := all(unlist(lapply(.SD[seq(max(1, which(PD_BEG_TIMESTAMP == sepsis_onset_dt) - 48),
+                                                      min(.N,which(PD_BEG_TIMESTAMP == sepsis_onset_dt) + 48)),
+                                                  required_fields, with = FALSE], 
+                                              function(x) any(! is.na(x))))), by = PAT_ENC_CSN]
+
+# Get sampling of cases
+# Per Rebecca's suggestion, sample in a stratified way across antibiotic delays
+sep_onset_dt <- sep_onset_dt[, antbx_delay_cat := cut(antbx_delay_hrs, breaks = c(-1, 6, 12, 24, 49))]
+N_PER_GROUP <- round(NUM_CASES / length(unique(sep_onset_dt$antbx_delay_cat)))
+cases_dt <- sep_onset_dt[visit %in% sep_all[has_all_fields == TRUE]$PAT_ENC_CSN, 
+                         .SD[sample(.N, N_PER_GROUP)], by = antbx_delay_cat]
+
+# Initialize bounds
+cases_dt[, `:=`(window_lower = -1, window_upper = -1)]
+
 # Now make a function to generate a plot for each user
 make_viz <- function(this_visit, onset_time, img_idx) {
   
@@ -162,24 +174,26 @@ make_viz <- function(this_visit, onset_time, img_idx) {
                        expand = c(.03, .03),
                        breaks = round(c(lb + 0:8 * inc)),
                        labels = round(c(lb + 0:8 * inc - lb + 1))) +
-    scale_y_continuous(breaks = scales::pretty_breaks(n = 4), expand = c(0.03, 0.03)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 3), expand = c(0.03, 0.03)) +
     geom_rect(aes(xmin = lb, xmax = ub, ymin = norm_lo, ymax = norm_hi),
              fill = 'lightgray', alpha = 0.2) +
     geom_line(data = temp_dt_m[! is.na(value)]) +
     geom_point() + 
     # ^^ NB putting this point layer at the end 
     # makes the points appear on "top" so the spike lines are more easily activated
-    facet_wrap(~ var_fixed, ncol = 1, scales = 'free_y') +
+    lemon::facet_rep_wrap(~ var_fixed, ncol = 1, 
+                          scales = 'free_y', repeat.tick.labels = TRUE) +
     ggtitle(plot_title) +
-    theme(plot.title = element_text(size = 12))
+    theme(plot.title = element_text(size = 12),
+          axis.text=element_text(size = 8)) 
 
-  ggsave(pp, filename = paste0('images/image', img_idx, '.png'), width = 6, height = 8)
+  ggsave(pp, filename = paste0('images/image', img_idx, '.png'), width = 5, height = 9)
 
   
   return(ggplotly(pp) %>% 
            layout(xaxis = list(showspikes = TRUE)) %>% 
            config(displayModeBar = FALSE))
-}
+} 
 
 # Test it out
 images_list <- lapply(1:NUM_CASES, function(i) make_viz(cases_dt[i]$visit, cases_dt[i]$sepsis_onset_dt, i))
@@ -198,8 +212,14 @@ cases_dt[, png_filename := paste0(img_path, 'image', .I, '.png')]
 cases_dt[, html_filename := paste0(img_path, 'image', .I, '.html')]
 fwrite(cases_dt, 'crosswalk_sepsis.csv')
 
-# Also generate two control vignettes, i.e. those that definitely don't have sepsis
-control_visits <- sep_all[! PAT_ENC_CSN %in% sep_events$visits][hosp_los_hrs > 48]
+# Also generate 1 control vignette, i.e. those that definitely don't have sepsis
+control_visits <- sep_all[! PAT_ENC_CSN %in% sep_events$visits
+                          ][hosp_los_hrs > 72
+                            ][has_all_fields == TRUE
+                              ][, low_severity := max(SOFA_TOTAL_SCORE) < 1, by = PAT_ENC_CSN
+                                ][
+                                  ][low_severity == TRUE
+                                    ][PAT_ENC_CSN == sample(unique(PAT_ENC_CSN), 1)]
 
 make_control_viz <- function(this_visit, onset_time, img_idx) {
   
@@ -282,17 +302,27 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
                        expand = c(.03, .03),
                        breaks = round(c(lb + 0:8 * inc)),
                        labels = round(c(lb + 0:8 * inc - lb + 1))) +
-    scale_y_continuous(breaks = scales::pretty_breaks(n = 4), expand = c(0.03, 0.03)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 3), expand = c(0.03, 0.03)) +
     geom_rect(aes(xmin = lb, xmax = ub, ymin = norm_lo, ymax = norm_hi),
               fill = 'lightgray', alpha = 0.2) +
     geom_line(data = temp_dt_m[! is.na(value)]) +
     geom_point() + 
     # ^^ NB putting this point layer at the end 
     # makes the points appear on "top" so the spike lines are more easily activated
-    facet_wrap(~ var_fixed, ncol = 1, scales = 'free_y') +
+    lemon::facet_rep_wrap(~ var_fixed, ncol = 1, 
+                          scales = 'free_y', repeat.tick.labels = TRUE) +
     ggtitle(plot_title) +
-    theme(plot.title = element_text(size = 12))
+    theme(plot.title = element_text(size = 12),
+          axis.text=element_text(size = 8)) 
   
-  ggsave(pp, filename = paste0('images/image_control', img_idx, '.png'), width = 6, height = 8)
+  ggsave(pp, filename = paste0('images/image_control_', img_idx, '.png'), width = 5, height = 9)
+  
+  
+  return(ggplotly(pp) %>% 
+           layout(xaxis = list(showspikes = TRUE)) %>% 
+           config(displayModeBar = FALSE))
 }
 
+make_control_viz(control_visits$PAT_ENC_CSN[1], 
+                 control_visits$PD_BEG_TIMESTAMP[round(nrow(control_visits) / 2)],
+                 1)
