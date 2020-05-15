@@ -9,7 +9,7 @@ SEPSIS3_EVENTS = "sepsis_cases_sepsis3.csv"
 NUM_CASES = 8
 # --------------------------------------------------------------------
 
-set.seed(1)
+set.seed(24601)
 
 library(data.table)
 library(ggplot2)
