@@ -231,6 +231,19 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
                                      ' admitted for\n',
                                      ADMIT_DX_DESC[1]))
   
+  # If admission diagnosis is very long, truncate it after the first comma
+  truncate_title_if_needed <- function(x) {
+    if (nchar(x) > 25) {
+      first_comma <- regexpr(',', x)
+      new_string <- substr(x, 1, first_comma - 1)
+      return(new_string)
+    } else {
+      return(x)
+    }
+  }
+  
+  plot_title <- truncate_title_if_needed(plot_title)
+  
   # Randomize offsets so Sep-3 onset is at the RIGHT side
   # This is biologically plausible based on current definition
   # i.e. unlikely that relevant antibiotic starttsime would be 
@@ -245,7 +258,6 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
   # This is hackish, but update the cases file to capture the window for each case
   cases_dt[visit == this_visit, window_lower := lb]
   cases_dt[visit == this_visit, window_upper := ub]
-  
   
   # Get range
   temp_dt <- temp_dt[lb:ub][, sub_hour := lb:ub]
@@ -310,7 +322,7 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
     # ^^ NB putting this point layer at the end 
     # makes the points appear on "top" so the spike lines are more easily activated
     lemon::facet_rep_wrap(~ var_fixed, ncol = 1, 
-                          scales = 'free_y', repeat.tick.labels = TRUE) +
+                          scales = 'free_y', repeat.tick.labels = TRUE) + 
     ggtitle(plot_title) +
     theme(plot.title = element_text(size = 12),
           axis.text=element_text(size = 8)) 
@@ -326,3 +338,4 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
 make_control_viz(control_visits$PAT_ENC_CSN[1], 
                  control_visits$PD_BEG_TIMESTAMP[round(nrow(control_visits) / 2)],
                  1)
+
