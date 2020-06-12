@@ -103,6 +103,19 @@ make_viz <- function(this_visit, onset_time, img_idx) {
                                     ' admitted for\n',
                                     ADMIT_DX_DESC[1]))
   
+  # If admission diagnosis is very long, truncate it after the first comma
+  truncate_title_if_needed <- function(x) {
+    if (nchar(x) > 25) {
+      first_comma <- regexpr(',', x)
+      new_string <- substr(x, 1, first_comma - 1)
+      return(new_string)
+    } else {
+      return(x)
+    }
+  }
+  
+  plot_title <- truncate_title_if_needed(plot_title)
+  
   # Randomize offsets so Sep-3 onset is at the RIGHT side
   # This is biologically plausible based on current definition
   # i.e. unlikely that relevant antibiotic starttsime would be 
@@ -185,7 +198,8 @@ make_viz <- function(this_visit, onset_time, img_idx) {
                           scales = 'free_y', repeat.tick.labels = TRUE) +
     ggtitle(plot_title) +
     theme(plot.title = element_text(size = 12),
-          axis.text=element_text(size = 8)) 
+          axis.text=element_text(size = 8),
+          strip.background =element_rect(fill="white")) 
 
   ggsave(pp, filename = paste0('images/image', img_idx, '.png'), width = 5, height = 9)
 
@@ -242,7 +256,7 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
     }
   }
   
-  plot_title <- truncate_title_if_needed(plot_title)
+  #plot_title <- truncate_title_if_needed(plot_title)
   
   # Randomize offsets so Sep-3 onset is at the RIGHT side
   # This is biologically plausible based on current definition
@@ -325,7 +339,8 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
                           scales = 'free_y', repeat.tick.labels = TRUE) + 
     ggtitle(plot_title) +
     theme(plot.title = element_text(size = 12),
-          axis.text=element_text(size = 8)) 
+          axis.text=element_text(size = 8),
+          strip.background =element_rect(fill="white")) 
   
   ggsave(pp, filename = paste0('images/image_control_', img_idx, '.png'), width = 5, height = 9)
   
