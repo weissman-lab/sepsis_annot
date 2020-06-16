@@ -105,7 +105,7 @@ make_viz <- function(this_visit, onset_time, img_idx) {
   
   # If admission diagnosis is very long, truncate it after the first comma
   truncate_title_if_needed <- function(x) {
-    if (nchar(x) > 25) {
+    if (nchar(x) > 65) {
       first_comma <- regexpr(',', x)
       new_string <- substr(x, 1, first_comma - 1)
       return(new_string)
@@ -247,7 +247,7 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
   
   # If admission diagnosis is very long, truncate it after the first comma
   truncate_title_if_needed <- function(x) {
-    if (nchar(x) > 25) {
+    if (nchar(x) > 65) {
       first_comma <- regexpr(',', x)
       new_string <- substr(x, 1, first_comma - 1)
       return(new_string)
