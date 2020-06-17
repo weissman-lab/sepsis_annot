@@ -159,7 +159,8 @@ make_viz <- function(this_visit, onset_time, img_idx) {
                                              'Temperature (F)', 
                                              'Respiratory rate (breaths per minute)',
                                              'Lactic acid (mmol/L)', 'SpO2 (%)',
-                                             'Creatinine (mg/dL)', 'White blood cell count (per microliter)',
+                                             'Creatinine (mg/dL)', 
+                                             'White blood cell count (thousand per microliter)',
                                              'Glasgow Coma Scale'))]
   
   # Hlper function
@@ -305,7 +306,8 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
                                              'Temperature (F)', 
                                              'Respiratory rate (breaths per minute)',
                                              'Lactic acid (mmol/L)', 'SpO2 (%)',
-                                             'Creatinine (mg/dL)', 'White blood cell count (per microliter)',
+                                             'Creatinine (mg/dL)', 
+                                             'White blood cell count (thousand per microliter)',
                                              'Glasgow Coma Scale'))]
   
   # Hlper function
