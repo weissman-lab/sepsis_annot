@@ -9,7 +9,7 @@ SEPSIS3_EVENTS = "sepsis_cases_sepsis3.csv"
 NUM_CASES = 8
 # --------------------------------------------------------------------
 
-set.seed(24601)
+set.seed(1)
 
 library(data.table)
 library(ggplot2)
@@ -100,7 +100,7 @@ make_viz <- function(this_visit, onset_time, img_idx) {
   
   plot_title <- with(temp_dt, paste0(AGE[1], '-year-old',
                                     # RACE_1[1], GENDER[1], # TOO MUCH BIAS RISK
-                                    ' admitted for\n',
+                                    ' admitted for ',
                                     ADMIT_DX_DESC[1]))
   
   # If admission diagnosis is very long, truncate it after the first comma
@@ -154,11 +154,13 @@ make_viz <- function(this_visit, onset_time, img_idx) {
   # Fix order and labels
   temp_dt_m[, var_fixed := factor(variable, 
                                      levels = feat_vec,
-                                     labels = c('Heart rate', 'Systolic blood pressure',
-                                     'Temperature (F)', 'Respiratory rate',
-                                     'Lactate', 'SpO2(%)',
-                                     'Creatinine', 'White blood cell count',
-                                     'Glasgow Coma Scale'))]
+                                     labels = c('Heart rate (beats per minute)', 
+                                             'Systolic blood pressure (mmHg)',
+                                             'Temperature (F)', 
+                                             'Respiratory rate (breaths per minute)',
+                                             'Lactic acid (mmol/L)', 'SpO2 (%)',
+                                             'Creatinine (mg/dL)', 'White blood cell count (per microliter)',
+                                             'Glasgow Coma Scale'))]
   
   # Hlper function
   "%nin%" <- function(x, table) !(match(x, table, nomatch = 0) > 0)
@@ -187,7 +189,7 @@ make_viz <- function(this_visit, onset_time, img_idx) {
                        expand = c(.03, .03),
                        breaks = round(c(lb + 0:8 * inc)),
                        labels = round(c(lb + 0:8 * inc - lb + 1))) +
-    scale_y_continuous(breaks = scales::pretty_breaks(n = 3), expand = c(0.03, 0.03)) +
+    scale_y_continuous(breaks = scales::pretty_breaks(n = 4), expand = c(0.03, 0.03)) +
     geom_rect(aes(xmin = lb, xmax = ub, ymin = norm_lo, ymax = norm_hi),
              fill = 'lightgray', alpha = 0.2) +
     geom_line(data = temp_dt_m[! is.na(value)]) +
@@ -197,11 +199,14 @@ make_viz <- function(this_visit, onset_time, img_idx) {
     lemon::facet_rep_wrap(~ var_fixed, ncol = 1, 
                           scales = 'free_y', repeat.tick.labels = TRUE) +
     ggtitle(plot_title) +
-    theme(plot.title = element_text(size = 12),
-          axis.text=element_text(size = 8),
-          strip.background =element_rect(fill="white")) 
+    theme(plot.title = element_text(size = 18),
+          axis.text = element_text(size = 14),
+          strip.background = element_rect(fill="white"),
+          strip.text = element_text(size = 13)) 
 
-  ggsave(pp, filename = paste0('images/image', img_idx, '.png'), width = 5, height = 9)
+  ggsave(pp, filename = paste0('images/image', img_idx, '.png'), 
+         width = 1000, height = 1800, 
+         device = Cairo::CairoPNG, limitsize = FALSE)
 
   
   return(ggplotly(pp) %>% 
@@ -242,7 +247,7 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
   
   plot_title <- with(temp_dt, paste0(AGE[1], '-year-old',
                                      # RACE_1[1], GENDER[1], # TOO MUCH BIAS RISK
-                                     ' admitted for\n',
+                                     ' admitted for ',
                                      ADMIT_DX_DESC[1]))
   
   # If admission diagnosis is very long, truncate it after the first comma
@@ -295,10 +300,12 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
   # Fix order and labels
   temp_dt_m[, var_fixed := factor(variable, 
                                   levels = feat_vec,
-                                  labels = c('Heart rate', 'Systolic blood pressure',
-                                             'Temperature (F)', 'Respiratory rate',
-                                             'Lactate', 'SpO2(%)',
-                                             'Creatinine', 'White blood cell count',
+                                  labels = c('Heart rate (beats per minute)', 
+                                             'Systolic blood pressure (mmHg)',
+                                             'Temperature (F)', 
+                                             'Respiratory rate (breaths per minute)',
+                                             'Lactic acid (mmol/L)', 'SpO2 (%)',
+                                             'Creatinine (mg/dL)', 'White blood cell count (per microliter)',
                                              'Glasgow Coma Scale'))]
   
   # Hlper function
@@ -338,11 +345,14 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
     lemon::facet_rep_wrap(~ var_fixed, ncol = 1, 
                           scales = 'free_y', repeat.tick.labels = TRUE) + 
     ggtitle(plot_title) +
-    theme(plot.title = element_text(size = 12),
-          axis.text=element_text(size = 8),
-          strip.background =element_rect(fill="white")) 
+    theme(plot.title = element_text(size = 18),
+          axis.text=element_text(size = 14),
+          strip.background =element_rect(fill="white"),
+          strip.text = element_text(size = 13)) 
   
-  ggsave(pp, filename = paste0('images/image_control_', img_idx, '.png'), width = 5, height = 9)
+  ggsave(pp, filename = paste0('images/image_control_', img_idx, '.png'), 
+         width = 1000, height = 1800, 
+         device = Cairo::CairoPNG, limitsize = FALSE)
   
   
   return(ggplotly(pp) %>% 
@@ -353,4 +363,8 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
 make_control_viz(control_visits$PAT_ENC_CSN[1], 
                  control_visits$PD_BEG_TIMESTAMP[round(nrow(control_visits) / 2)],
                  1)
+
+# And generate some sample images for annotation
+
+
 
