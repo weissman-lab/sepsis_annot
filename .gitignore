@@ -1,5 +1,6 @@
 sepsis_cases_sepsis3.csv
 crosswalk_sepsis.csv
+sepsis_dataset_sepsis3_cohort.dta
 pilot_01/crosswalk_sepsis.csv
 pilot_02/crosswalk_sepsis.csv
 pilot_03/crosswalk_sepsis.csv
