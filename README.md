@@ -6,21 +6,21 @@ This directory contains files related to the sepsis annotation project. The goal
 
 After multiple revisions to the implementation of the Sepsis-3 definition, sepsis cases are now identified in the file `sepsis_dataset_sepsis3_cohort.dta` that was developed by Jen. Important fields include: 
 
-- sofasepsis_case = sepsis case (community and hospital acquired)
-- hosp_sofasepsis_case = hospital acquired sepsis case
-- sofa_cirt_first = first criteria to occur out of bcx draw, organ dysfunction, and abx initiation in a sepsis case
+- `sofasepsis_case` = sepsis case (community and hospital acquired)
+- `hosp_sofasepsis_case` = hospital acquired sepsis case
+- `sofa_cirt_first` = first criteria to occur out of bcx draw, organ dysfunction, and abx initiation in a sepsis case
 
-- sepsis_abx_datetime = date & time of abx start in a sepsis episode
-- sepsis_bcx_datetime = date & time of bcx draw in a sepsis episode
-- sepsis_sofa_datetime = date & time of onset of organ dysfunction in a sepsis episode (first delta sofa >=2 within 96h bcx window)
+- `sepsis_abx_datetime` = date & time of abx start in a sepsis episode
+- `sepsis_bcx_datetime` = date & time of bcx draw in a sepsis episode
+- `sepsis_sofa_datetime` = date & time of onset of organ dysfunction in a sepsis episode (first delta sofa >=2 within 96h bcx window)
 
-- sepsis_abx_time = time of abx start in a sepsis episode
-- sepsis_bcx_time = time of bcx draw in a sepsis episode
-- sepsis_sofa_time = time of onset of organ dysfunction in a sepsis episode
+- `sepsis_abx_time` = time of abx start in a sepsis episode
+- `sepsis_bcx_time` = time of bcx draw in a sepsis episode
+- `sepsis_sofa_time` = time of onset of organ dysfunction in a sepsis episode
 
-- datetime_zero = date and time of first sepsis criteria met in a sepsis case
-- time_zero = time of first sepsis criteria met in a sepsis case
-- time_to_abx = time btw time zero and abx start
+- `datetime_zero` = date and time of first sepsis criteria met in a sepsis case
+- `time_zero` = time of first sepsis criteria met in a sepsis case
+- `time_to_abx` = time btw time zero and abx start
 
 ## Old version (NB this approach is now deprecated as of the final version)
 
