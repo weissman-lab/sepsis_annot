@@ -1,0 +1,50 @@
+---
+title: "Demographic Summary Info"
+author: "Gary Weissman"
+date: "7/16/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r libraries}
+library(haven)
+library(data.table)
+library(ggplot2)
+```
+
+## Background
+
+This notebooks describes the demographic characteristics of patients with Sepsis-3 sepsis admitted to four Penn hospital
+
+```{r load_data}
+SEPSIS3_EVENTS = 'sepsis_dataset_sepsis3_cohort.dta'
+cases_dt <- setDT(read_dta(SEPSIS3_EVENTS))
+```
+
+## NIH Demographics
+
+The NIH cares about race, ethnicity, and gender. 
+
+### Patients only with hospital-acquired sepsis
+
+```{r demographics_sepsis_only}
+knitr::kable(cases_dt[hosp_sofasepsis_case == 1, .(gender, race, latinx)][, 
+                                                             .N, 
+                                                             by = .(gender, race, latinx)])
+
+
+```
+
+## Codes
+
+Each numeric value for each demographic uses the following labels:
+
+```{r labels}
+# Gender
+print(attributes(cases_dt$gender)$labels)
+# Race
+attributes(cases_dt$race)$labels
+```

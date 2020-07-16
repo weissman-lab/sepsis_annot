@@ -5,19 +5,22 @@
 
 # --------------------------------------------------------------------
 SEPSIS_DATA_PATH = "/data/uphs_sepsis/updated_combo_Jan_2020/single_file_augmented_data_Jan_2020.csv"
-SEPSIS3_EVENTS = "sepsis_cases_sepsis3.csv"
+# OLD VERSION: SEPSIS3_EVENTS = "sepsis_cases_sepsis3.csv"
+SEPSIS3_EVENTS = 'sepsis_dataset_sepsis3_cohort.dta'
 NUM_CASES = 8
 # --------------------------------------------------------------------
 
-set.seed(1)
+set.seed(24601)
 
 library(data.table)
 library(ggplot2)
 library(plotly)
 library(dplyr)
+library(haven)
+
 
 sep_all <- fread(SEPSIS_DATA_PATH)
-sep_events <- fread(SEPSIS3_EVENTS)
+sep_events <- as.data.table(read_dta(SEPSIS3_EVENTS))
 
 # Identify sepsis onset timestamp
 sep_onset_dt <- sep_events[, .(onset_char_ts = dplyr::case_when(all(sofa_bcx == 1) ~ bcx_datetime[1],
