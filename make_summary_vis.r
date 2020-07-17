@@ -2,6 +2,7 @@
 # during  a period around the time when they might have sepsis
 # It will save the de-identified output to an image file
 # And generate a crosswalk csv file with PHI
+# NB. This version uses the revised sepsis dataset
 
 # --------------------------------------------------------------------
 SEPSIS_DATA_PATH = "/data/uphs_sepsis/updated_combo_Jan_2020/single_file_augmented_data_Jan_2020.csv"
@@ -9,8 +10,6 @@ SEPSIS_DATA_PATH = "/data/uphs_sepsis/updated_combo_Jan_2020/single_file_augment
 SEPSIS3_EVENTS = 'sepsis_dataset_sepsis3_cohort.dta'
 NUM_CASES = 8
 # --------------------------------------------------------------------
-
-set.seed(24601)
 
 library(data.table)
 library(ggplot2)
@@ -20,15 +19,15 @@ library(haven)
 
 
 sep_all <- fread(SEPSIS_DATA_PATH)
-sep_events <- as.data.table(read_dta(SEPSIS3_EVENTS))
+sep_events <- setDT(read_dta(SEPSIS3_EVENTS))
 
-# Identify sepsis onset timestamp
-sep_onset_dt <- sep_events[, .(onset_char_ts = dplyr::case_when(all(sofa_bcx == 1) ~ bcx_datetime[1],
-                                                               all(sofa_abx == 1) ~ abx_datetime[1],
-                                                               all(sofa_sofa == 1) ~ sofa_datetime[1]),
+# Identify sepsis onset timestamp in the reliable time range we have
+sep_onset_dt <- sep_events[hosp_sofasepsis_case == 1, 
+                           .(onset_char_ts = sofasepsis_datetime_zero[1],
+                             admission_char_ts = adm_datetime[1],
                                mrn = mrn[1],
-                               antbx_start_char_ts = abx_datetime[1],
-                               mortality = mortality[1],
+                               antbx_start_char_ts = sofasepsis_abx_datetime[1],
+                               mortality = any(! is.na(death_datetime)),
                                adm_datetime = adm_datetime[1]), 
                            by = visit]
 
@@ -36,6 +35,7 @@ sep_onset_dt <- sep_events[, .(onset_char_ts = dplyr::case_when(all(sofa_bcx == 
 sep_onset_dt[, sepsis_onset_dt := as.POSIXct(onset_char_ts, format = '%Y-%m-%dT%H:%M:%S')]
 sep_onset_dt[, hosp_adm_dt := as.POSIXct(adm_datetime, format = '%Y-%m-%dT%H:%M:%S')]
 sep_onset_dt[, antbx_start_dt := as.POSIXct(antbx_start_char_ts, format = '%Y-%m-%dT%H:%M:%S')]
+sep_onset_dt[, admission_dt := as.POSIXct(admission_char_ts, format = '%Y-%m-%dT%H:%M:%S')]
 sep_onset_dt[, hosp_adm_to_sepsis_onset_hrs := as.numeric(sepsis_onset_dt - hosp_adm_dt, 
                                                           units = 'hours')]
 sep_onset_dt[, antbx_delay_hrs := as.numeric(antbx_start_dt - sepsis_onset_dt,
@@ -47,6 +47,9 @@ sep_onset_dt <- sep_onset_dt[hosp_adm_to_sepsis_onset_hrs >= 48]
 sep_all[, adm_dt := as.POSIXct(ADMISSION_DTTM, format = '%Y-%m-%d %H:%M:%S')]
 sep_all[, disch_dt := as.POSIXct(DISCHARGE_DTTM, format = '%Y-%m-%d %H:%M:%S')]
 sep_all[, hosp_los_hrs := as.numeric(disch_dt - adm_dt, units = 'hours')]
+
+# Make sure we are using admission that occur after July 1, 2017
+sep_onset_dt <- sep_onset_dt[hosp_adm_dt >= as.POSIXct("2017-07-01")]
   
 # Some data clean up
 sep_all[RESPIRATORY_RATE == 'WDL', RESP_RATE := 18]
@@ -84,6 +87,11 @@ sep_all[, has_all_fields := all(unlist(lapply(.SD[seq(max(1, which(PD_BEG_TIMEST
                                                       min(.N,which(PD_BEG_TIMESTAMP == sepsis_onset_dt) + 48)),
                                                   required_fields, with = FALSE], 
                                               function(x) any(! is.na(x))))), by = PAT_ENC_CSN]
+
+
+
+# Fixed seed! Set here.
+set.seed(786)
 
 # Get sampling of cases
 # Per Rebecca's suggestion, sample in a stratified way across antibiotic delays
@@ -133,6 +141,7 @@ make_viz <- function(this_visit, onset_time, img_idx) {
   # This is hackish, but update the cases file to capture the window for each case
   cases_dt[visit == this_visit, window_lower := lb]
   cases_dt[visit == this_visit, window_upper := ub]
+  cases_dt[visit == this_visit, onset_idx := time_idx]
   
    
   # Get range
@@ -242,7 +251,7 @@ control_visits <- sep_all[! PAT_ENC_CSN %in% sep_events$visits
                               ][, low_severity := max(SOFA_TOTAL_SCORE) < 1, by = PAT_ENC_CSN
                                 ][
                                   ][low_severity == TRUE
-                                    ][PAT_ENC_CSN == sample(unique(PAT_ENC_CSN), 1)]
+                                    ][PAT_ENC_CSN %in% sample(unique(PAT_ENC_CSN), 5)]
 
 make_control_viz <- function(this_visit, onset_time, img_idx) {
   
@@ -359,15 +368,17 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
          width = 1000, height = 1800, 
          device = Cairo::CairoPNG, limitsize = FALSE)
   
-  
-  return(ggplotly(pp) %>% 
-           layout(xaxis = list(showspikes = TRUE)) %>% 
-           config(displayModeBar = FALSE))
+  return(T)
+  #return(ggplotly(pp) %>% 
+  #         layout(xaxis = list(showspikes = TRUE)) %>% 
+  #         config(displayModeBar = FALSE))
 }
 
-make_control_viz(control_visits$PAT_ENC_CSN[1], 
-                 control_visits$PD_BEG_TIMESTAMP[round(nrow(control_visits) / 2)],
-                 1)
+control_visits[, make_control_viz(PAT_ENC_CSN[1],
+                                  PD_BEG_TIMESTAMP[round(nrow(.SD) / 2)],
+                                  .GRP),
+               by = PAT_ENC_CSN]
+
 
 # And generate some sample images for annotation
 
