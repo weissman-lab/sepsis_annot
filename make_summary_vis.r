@@ -91,7 +91,7 @@ sep_all[, has_all_fields := all(unlist(lapply(.SD[seq(max(1, which(PD_BEG_TIMEST
 
 
 # Fixed seed! Set here.
-set.seed(786)
+set.seed(1786)
 
 # Get sampling of cases
 # Per Rebecca's suggestion, sample in a stratified way across antibiotic delays
@@ -118,14 +118,14 @@ make_viz <- function(this_visit, onset_time, img_idx) {
   truncate_title_if_needed <- function(x) {
     if (nchar(x) > 65) {
       first_comma <- regexpr(',', x)
-      new_string <- substr(x, 1, first_comma - 1)
+      new_string <- substr(x, 1, first_comma[1] - 1)
       return(new_string)
     } else {
       return(x)
     }
   }
   
-  plot_title <- truncate_title_if_needed(plot_title)
+  #plot_title <- truncate_title_if_needed(plot_title)
   
   # Randomize offsets so Sep-3 onset is at the RIGHT side
   # This is biologically plausible based on current definition
@@ -251,7 +251,7 @@ control_visits <- sep_all[! PAT_ENC_CSN %in% sep_events$visits
                               ][, low_severity := max(SOFA_TOTAL_SCORE) < 1, by = PAT_ENC_CSN
                                 ][
                                   ][low_severity == TRUE
-                                    ][PAT_ENC_CSN %in% sample(unique(PAT_ENC_CSN), 5)]
+                                    ][PAT_ENC_CSN %in% sample(unique(PAT_ENC_CSN), 10)]
 
 make_control_viz <- function(this_visit, onset_time, img_idx) {
   
