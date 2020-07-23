@@ -116,7 +116,7 @@ make_viz <- function(this_visit, onset_time, img_idx) {
   
   # If admission diagnosis is very long, truncate it after the first comma
   truncate_title_if_needed <- function(x) {
-    if (nchar(x) > 65) {
+    if (nchar(x) > 80) {
       first_comma <- regexpr(',', x)
       new_string <- substr(x, 1, first_comma[1] - 1)
       return(new_string)
@@ -125,8 +125,8 @@ make_viz <- function(this_visit, onset_time, img_idx) {
     }
   }
   
-  #plot_title <- truncate_title_if_needed(plot_title)
-  
+  plot_title <- truncate_title_if_needed(plot_title)
+
   # Randomize offsets so Sep-3 onset is at the RIGHT side
   # This is biologically plausible based on current definition
   # i.e. unlikely that relevant antibiotic starttsime would be 
@@ -212,7 +212,7 @@ make_viz <- function(this_visit, onset_time, img_idx) {
     lemon::facet_rep_wrap(~ var_fixed, ncol = 1, 
                           scales = 'free_y', repeat.tick.labels = TRUE) +
     ggtitle(plot_title) +
-    theme(plot.title = element_text(size = 18),
+    theme(plot.title = element_text(size = 22),
           axis.text = element_text(size = 14),
           strip.background = element_rect(fill="white"),
           strip.text = element_text(size = 13)) 
@@ -265,7 +265,7 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
   
   # If admission diagnosis is very long, truncate it after the first comma
   truncate_title_if_needed <- function(x) {
-    if (nchar(x) > 65) {
+    if (nchar(x) > 80) {
       first_comma <- regexpr(',', x)
       new_string <- substr(x, 1, first_comma - 1)
       return(new_string)
@@ -274,7 +274,7 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
     }
   }
   
-  #plot_title <- truncate_title_if_needed(plot_title)
+  plot_title <- truncate_title_if_needed(plot_title)
   
   # Randomize offsets so Sep-3 onset is at the RIGHT side
   # This is biologically plausible based on current definition
@@ -359,7 +359,7 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
     lemon::facet_rep_wrap(~ var_fixed, ncol = 1, 
                           scales = 'free_y', repeat.tick.labels = TRUE) + 
     ggtitle(plot_title) +
-    theme(plot.title = element_text(size = 18),
+    theme(plot.title = element_text(size = 22),
           axis.text=element_text(size = 14),
           strip.background =element_rect(fill="white"),
           strip.text = element_text(size = 13)) 
