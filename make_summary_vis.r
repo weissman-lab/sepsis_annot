@@ -213,9 +213,10 @@ make_viz <- function(this_visit, onset_time, img_idx) {
                           scales = 'free_y', repeat.tick.labels = TRUE) +
     ggtitle(plot_title) +
     theme(plot.title = element_text(size = 22),
-          axis.text = element_text(size = 14),
+          axis.text = element_text(size = 18),
+          axis.title = element_text(size=20),
           strip.background = element_rect(fill="white"),
-          strip.text = element_text(size = 13)) 
+          strip.text = element_text(size = 15)) 
 
   ggsave(pp, filename = paste0('images/image', img_idx, '.png'), 
          width = 1000, height = 1800, 
@@ -267,7 +268,7 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
   truncate_title_if_needed <- function(x) {
     if (nchar(x) > 80) {
       first_comma <- regexpr(',', x)
-      new_string <- substr(x, 1, first_comma - 1)
+      new_string <- substr(x, 1, first_comma[1] - 1)
       return(new_string)
     } else {
       return(x)
@@ -360,9 +361,10 @@ make_control_viz <- function(this_visit, onset_time, img_idx) {
                           scales = 'free_y', repeat.tick.labels = TRUE) + 
     ggtitle(plot_title) +
     theme(plot.title = element_text(size = 22),
-          axis.text=element_text(size = 14),
+          axis.text=element_text(size = 18),
+          axis.title = element_text(size=20),
           strip.background =element_rect(fill="white"),
-          strip.text = element_text(size = 13)) 
+          strip.text = element_text(size = 15)) 
   
   ggsave(pp, filename = paste0('images/image_control_', img_idx, '.png'), 
          width = 1000, height = 1800, 
