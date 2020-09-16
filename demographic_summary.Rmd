@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(haven)
 library(data.table)
 library(ggplot2)
+library(kableExtra)
 ```
 
 ## Background
@@ -31,9 +32,16 @@ The NIH cares about race, ethnicity, and gender.
 ### Patients only with hospital-acquired sepsis
 
 ```{r demographics_sepsis_only}
-knitr::kable(cases_dt[hosp_sofasepsis_case == 1, .(gender, race, latinx)][, 
+
+dems_raw <- cases_dt[hosp_sofasepsis_case == 1, .(gender, race, latinx)][, 
                                                              .N, 
-                                                             by = .(gender, race, latinx)])
+                                                             by = .(gender, race, latinx)]
+dems_final <- as.data.frame(lapply(dems_raw, as.vector))
+
+
+dems_final %>%
+  kbl() %>%
+  kable_styling()
 
 
 ```
