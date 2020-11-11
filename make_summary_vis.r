@@ -103,6 +103,8 @@ cases_dt <- sep_onset_dt[visit %in% sep_all[has_all_fields == TRUE]$PAT_ENC_CSN,
 # Initialize bounds
 cases_dt[, `:=`(window_lower = -1, window_upper = -1)]
 
+clinical_data <- list()
+
 # Now make a function to generate a plot for each user
 make_viz <- function(this_visit, onset_time, img_idx) {
   
@@ -193,7 +195,10 @@ make_viz <- function(this_visit, onset_time, img_idx) {
   
   # Determine breaks
   inc <- round((ub - lb) / 8)
-  
+
+  # save output
+  clinical_data <<- append(clinical_data, list(temp_dt_m))
+    
   # Make plot
   pp <- ggplot(temp_dt_m, aes(hour, value)) +
     theme_bw() + 
@@ -245,6 +250,11 @@ cases_dt[, png_filename := paste0(img_path, 'image', .I, '.png')]
 cases_dt[, html_filename := paste0(img_path, 'image', .I, '.html')]
 fwrite(cases_dt, 'crosswalk_sepsis.csv')
 
+# Clean up and de-id clinical data info file
+clinical_data_all <- rbindlist(lapply(1:NUM_CASES, function(n) clinical_data[[n]][, vignette_idx := n]))
+# And save to disk
+fwrite(clinical_data_all[, .(vignette_idx, hour, variable, var_fixed, value)],
+       'deid_clinical_data.csv')
 # Also generate 1 control vignette, i.e. those that definitely don't have sepsis
 control_visits <- sep_all[! PAT_ENC_CSN %in% sep_events$visits
                           ][hosp_los_hrs > 72
